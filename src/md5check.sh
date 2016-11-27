@@ -1,52 +1,76 @@
 #!/bin/bash
-PROG_NAME=`which md5`
+#
+#
+#
+function CHECK_FILE(){
+	local _CHECKSUM=`awk '{print($1)}' "$1.md5"`
+	local _LFILENAME=`awk '{print($2)}' "$1.md5"`
+	echo -n "Processing file: $_LFILENAME "
+	local _CALCULATED_CHECKSUM=`${PROG_NAME} "$1"|awk '{print($1)}'`
+	if [[ "${_CHECKSUM}" = "${_CALCULATED_CHECKSUM}" ]]; then
+		echo " OK"
+		return 0
+	else
+		echo " BROKEN!!!"
+		return 1	
+	fi
+}
+
+
+
 WORK_DIR=`pwd`
+PROG_NAME=`which md5`
 if [[ $? -ne 0 ]];then
 	PROG_NAME="md5sum"
+else
+	PROG_NAME=${PROG_NAME}" -r"	
 fi
 
 if [ -z $1 ];then
 		echo "USAGE:"
 		echo "$0 [-cd] file or directory name"
-		echo "-c check file with checksum in md5 file"
+		echo "-c check file with checksum in md5 file or all files i directory"
 		echo "-d create checksum file for every entry in working directory"
 		echo "filename - create checksum md5 file"
-		exit
+		exit 0
 fi
 
-case $1 in
+MAIN_COMMAND=$1
+MAIN_COMMAND_PARAM=$2
+
+case ${MAIN_COMMAND} in
 	"-c" )
-		if [[ -e ${WORK_DIR}/$2.md5 ]];then
-			CHECKSUM=`awk '{print($1)}' "${WORK_DIR}/$2.md5"`
-			CALCULATED_CHECKSUM=`${PROG_NAME} -r "$2"|awk '{print($1)}'`
-			if [[ "${CHECKSUM}" = "${CALCULATED_CHECKSUM}" ]]; then
-				#echo $CHECKSUM
-				#echo $CALCULATED_CHECKSUM
-				echo "$2 OK"
-				exit 0
-			else
-				echo "$2 BROKEN!!!"
-				exit 1	
-			fi
+		if [[ -d "${MAIN_COMMAND_PARAM}" ]]; then
+			TMP_WORK_DIR="${WORK_DIR}"
+			WORK_DIR="${MAIN_COMMAND_PARAM}"
+			cd "${WORK_DIR}" 
+			for _file in `ls *.md5|sed 's/.md5$//'`
+			do
+				CHECK_FILE ${_file}	
+			done
+		elif [[ -e $MAIN_COMMAND_PARAM.md5 ]];then
+			CHECK_FILE ${MAIN_COMMAND_PARAM}
+			exit $?
 		else
-			echo "check sum file $2 not found"	
+			echo "check sum file ${MAIN_COMMAND_PARAM} not found"	
+			exit 1
 		fi
 	;;
 	"-d" )
-		if [ -z "$2" ];then
+		if [ -z "${MAIN_COMMAND_PARAM}" ];then
 			for file in `ls "${WORK_DIR}"`
 			do
-				${PROG_NAME} -r "${file}" | sed 's/ /  /' > "${WORK_DIR}/${file}.md5"
+				${PROG_NAME} "${file}" | awk ' {print $1"  "$2} ' > "${WORK_DIR}/${file}.md5"
 				cat "${WORK_DIR}/${file}.md5"
 			done			
 			exit 0
-		elif [[ -d "$2" ]]; then
+		elif [[ -d "${MAIN_COMMAND_PARAM}" ]]; then
 			TMP_WORK_DIR="${WORK_DIR}"
-			WORK_DIR="$2"
+			WORK_DIR="${MAIN_COMMAND_PARAM}"
 			cd "${WORK_DIR}" 
 			for file in `ls .`
 			do
-				${PROG_NAME} -r "${file}" | sed 's/ /  /' > "${file}.md5"
+				${PROG_NAME} "${file}" | awk ' {print $1"  "$2} ' > "${file}.md5"
 				cat "${file}.md5"
 			done			
 			WORK_DIR="${TMP_WORK_DIR}"
@@ -54,7 +78,7 @@ case $1 in
 			exit 0
 
 		else
-			echo " $2 is not a directory"
+			echo " ${MAIN_COMMAND_PARAM} is not a directory"
 			exit 1
 		fi
 		exit 0	
@@ -62,15 +86,14 @@ case $1 in
 
 # default action simply create md5 checksum file and add md5 extension to original name.	
 	*)
-	if [[ -e "${WORK_DIR}/$1" ]];then
-			${PROG_NAME} -r "$1" | sed 's/ /  /' > "${WORK_DIR}/$1.md5"
-			cat "${WORK_DIR}/$1.md5"
+	if [[ -e "${WORK_DIR}/${MAIN_COMMAND}" ]];then
+			${PROG_NAME}  "${MAIN_COMMAND}" | awk ' {print $1"  "$2} ' > "${WORK_DIR}/${MAIN_COMMAND}.md5"
+			cat "${WORK_DIR}/${MAIN_COMMAND}.md5"
 		else
-			echo "file $1 not found"	
+			echo "file ${MAIN_COMMAND} not found"	
 		fi	
 	;;	
 esac	
-
 
 
 
